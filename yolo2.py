@@ -1,18 +1,16 @@
-import math
+
 import sys
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
-import torch
-import torchvision
+
 import cv2
-import numpy as np
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from ultralytics import YOLO
 import qdarkstyle
-from qt_material import apply_stylesheet
-from QCandyUi.CandyWindow import colorful
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -198,6 +196,16 @@ class Ui_MainWindow(object):
         self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         self.textBrowser = QtWidgets.QTextBrowser(self.groupBox3)
         self.textBrowser.setObjectName("textBrowser")
+        self.textBrowser.setStyleSheet("QTextBrowser\n"
+                                   "{\n"
+                                   "    font-size: 30px;\n"
+                                   "    font-family: \"Microsoft YaHei\";\n"
+                                   "    font-weight: bold;\n"
+                                   "         border-radius:9px;\n"
+                                   "        background:rgba(255, 255, 255, 0);\n"
+                                   "color: rgb(0, 0, 0);\n"
+                                   "}\n"
+                                   "")
         self.horizontalLayout_3.addWidget(self.textBrowser)
         spacerItem1 = QtWidgets.QSpacerItem(428, 298, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout_3.addItem(spacerItem1)
@@ -268,7 +276,7 @@ class Ui_MainWindow(object):
         self.horizontalSlider.valueChanged.connect(self.confchange)
         self.horizontalSlider_2.valueChanged.connect(self.iouchange)
 
-        self.model = YOLO('../yolov8s.pt')
+        self.model = YOLO('yolov8s.pt')
         self.conf = 0.7
         self.horizontalSlider.setValue(int(self.conf*100))
         self.iou = 0.4
@@ -279,8 +287,8 @@ class Ui_MainWindow(object):
         self.timerca.timeout.connect(self.showCamera)
         self.timermp = QTimer()
         self.timermp.timeout.connect(self.showvideo)
-        self.textBrowser.append('jieguo')
-        self.leixing = 1
+        self.textBrowser.append('选择你想要的功能然后点击开始吧，若需要选择其他模型，点击选择模型进行选择即可')
+        self.leixing = 0
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
@@ -304,14 +312,17 @@ class Ui_MainWindow(object):
         self.iou = self.horizontalSlider_2.value()/100
 
     def uploadImage(self):
-        self.leixing = 1
+        self.stop()
+
         file_dialog = QFileDialog()
         image_path, _ = file_dialog.getOpenFileName(None, '选择图片', '', 'Images (*.png *.xpm *.jpg *.bmp)')
         self.image_path = image_path
         if image_path:
+            self.leixing = 1
             # 在这里添加加载图片的逻辑，例如显示图片到label2
             image = cv2.imread(image_path)
             self.show_image(image, self.label)
+            self.textBrowser.append("图片已经打开，点击开始进行检测")
             # pixmap = QtGui.QPixmap(image_path)
             # self.label.setPixmap(pixmap)
             # self.label.setScaledContents(True)
@@ -362,13 +373,16 @@ class Ui_MainWindow(object):
         label.setScaledContents(True)
 
     def uploadMP(self):
-        self.leixing = 2
+        self.stop()
+
         videoPath, _ = QFileDialog.getOpenFileName(
             None,  # 父窗口对象
             "选择视频文件",  # 标题
             ".",  # 起始目录
             "图片类型 (*.mp4 *.avi)"  # 选择类型过滤项，过滤内容在括号中
         )
+        if videoPath:
+            self.leixing = 2
         self.image_path = videoPath
         # 参数0代表系统第一个摄像头,第二就用1 以此类推
         self.cap = cv2.VideoCapture(self.image_path)
@@ -376,12 +390,26 @@ class Ui_MainWindow(object):
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
+        self.textBrowser.append("视频已经打开，点击开始进行检测")
 
 
     def showvideo(self):
         ret, frame = self.cap.read()
         results=self.model(source=frame,conf=self.conf,iou=self.iou)
         caframe=results[0].plot()
+        boxes=results[0].boxes
+        names=results[0].names
+        labels_num_dict={}
+        for box in boxes:
+            cls_id=box.cls.cpu().detach().numpy()[0].astype('int')
+            for key in names.keys():
+                if cls_id==key:
+                    if names[key] in labels_num_dict:
+                        labels_num_dict[names[key]]+=1
+                    else:
+                        labels_num_dict[names[key]] = 1
+        self.textBrowser.clear()
+        self.textBrowser.append(str(labels_num_dict))
 
         # 视频流置于label中间部分播放
         # 视频色彩转换回RGB，OpenCV images as BGR
@@ -400,13 +428,17 @@ class Ui_MainWindow(object):
         self.label_2.setScaledContents(True)
 
     def uploadCamera(self):
-        self.leixing=3
+        self.stop()
+
         # 参数0代表系统第一个摄像头,第二就用1 以此类推
         self.cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+        if self.cap.isOpened():
+            self.leixing = 3
         # 设置显示分辨率和FPS ,不设置的话会非常卡
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
+        self.textBrowser.append("摄像头已经打开，点击开始进行检测")
 
 
 
@@ -417,6 +449,20 @@ class Ui_MainWindow(object):
         self.image_path = frame
         results=self.model(self.image_path,conf=self.conf,iou=self.iou)
         caframe=results[0].plot()
+
+        boxes = results[0].boxes
+        names = results[0].names
+        labels_num_dict = {}
+        for box in boxes:
+            cls_id = box.cls.cpu().detach().numpy()[0].astype('int')
+            for key in names.keys():
+                if cls_id == key:
+                    if names[key] in labels_num_dict:
+                        labels_num_dict[names[key]] += 1
+                    else:
+                        labels_num_dict[names[key]] = 1
+        self.textBrowser.append(str(labels_num_dict))
+
         self.show_image(frame, self.label)
         self.show_image(caframe, self.label_2)
 
@@ -439,6 +485,18 @@ class Ui_MainWindow(object):
         if self.leixing == 1:
             results = self.model.predict(self.image_path,conf=self.conf,iou=self.iou)
             annotated_frame = results[0].plot()
+            boxes = results[0].boxes
+            names = results[0].names
+            labels_num_dict = {}
+            for box in boxes:
+                cls_id = box.cls.cpu().detach().numpy()[0].astype('int')
+                for key in names.keys():
+                    if cls_id == key:
+                        if names[key] in labels_num_dict:
+                            labels_num_dict[names[key]] += 1
+                        else:
+                            labels_num_dict[names[key]] = 1
+            self.textBrowser.append(str(labels_num_dict))
             self.show_image(annotated_frame, self.label_2)
         elif self.leixing == 2:
             self.timermp.start(30)
@@ -447,15 +505,24 @@ class Ui_MainWindow(object):
         else:
             self.stop()
     def select(self):
+        self.stop()
+        self.leixing=0
         file_dialog = QFileDialog()
         path, _ = file_dialog.getOpenFileName(None, '选择模型', '', 'model(*.pt)')
-        self.model=YOLO(path)
+        if path:
+            self.model=YOLO(path)
+        self.textBrowser.append("模型已经加载，点击功能开始进行检测")
     def stop(self):
+        self.leixing = 0
         self.cap.release()
         self.timerca.stop()
         self.timermp.stop()
         self.label.clear()
         self.label_2.clear()
+        self.textBrowser.clear()
+        self.textBrowser.append('选择你想要的功能然后点击开始吧，若需要选择其他模型，点击选择模型进行选择即可')
+        self.label.setText('原始图像')
+        self.label_2.setText('检测图像')
 
 app = QApplication(sys.argv)
 
@@ -463,6 +530,5 @@ app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 main1=QMainWindow()
 ui = Ui_MainWindow()
 ui.setupUi(main1)
-#apply_stylesheet(app, theme='light_cyan.xml')
 main1.show()
 sys.exit(app.exec_())
